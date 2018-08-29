@@ -6,7 +6,8 @@
 Includes two main functions to simulate:
 - Slab waveguide
 - Ridge waveguide: "effective index" approximation
-### Input parameters
+
+Input parameters
 - n1 = 2.038;     % core Si3N4 3.48 2.038 (glass 1.5)
 - n0 = 1.5;     % cladding Sample Media 1.33
 - ns = 1.5;     % substrate SiO2 1.4
