@@ -2,7 +2,7 @@
 %---------------------------------------------------------------------%
 %           Ridge waveguide: "effective index" approximation
 %---------------------------------------------------------------------%
-%
+%         Slab T               Slab H                   Slab T
 %                       ______________________w__
 %    __________________|                         |__________________no
 %  t|                  |  h                                         n1
@@ -12,14 +12,22 @@
 %
 % Anna Archetti - EPFL 2017
 %
-%---------------------------------------------------------------------%
-% Step 1
-%---------------------------------------------------------------------%
-% T thickness
-corDimT = 0.200;    % 2a [um] 2a 1 0.1
+% Inspired by
+% https://ntrs.nasa.gov/archive/nasa/casi.ntrs.nasa.gov/19950016498.pdf 
+% Nasa 1995 - Calculated Coupling Efficiency Between am Elliptical-Core
+% Optical Fiber and a Silicon Oxynitride Rib Waveguide
+
+
+%----------------------------------------------------------------------------%
+% Step 1: determination of the effective index corresponding to zone T and H
+%----------------------------------------------------------------------------%
+
+% Slab T 
+
+corDimT = 0.005;    % 2a [um] 2a 1 0.1
 n1 = 2.038;       % core 1.5
-n0 = 1.38;         % cladding 1
-ns = 1.45;      % substrate 1.45
+n0 = 1.47;         % cladding 1
+ns = 1.47;      % substrate 1.45
 lambda = 0.647;  % um 1.55
 %modeNUM = 3;
 
@@ -40,8 +48,10 @@ myFunc = @(br) atan(sqrt(br./(1 - br))) +  ...
                     atan(sqrt((br + gamma)./(1 - br))) - ...
                     2.*vT.*sqrt(1 - br);
 
+                    
 % Get the b number for the overdefined v
-[bT, byRoot] = findCFRootBisection(myFunc, rootBInt, 0.001, 10^8);   
+%[bT, byRoot] = findCFRootBisection(myFunc, rootBInt, 0.001, 10^10);   
+[bT, byRoot] = findCFRootBisection(myFunc, [0.001, 1], 0.001, 10^10);
 
 % Effective index
 neT1 = sqrt(bT*(n1^2 - ns^2) + ns^2);
@@ -79,9 +89,9 @@ lambdaCsT = 2*pi/vT*corDimT/2*NAsY;
 
 %%
 %------------------------------------------------------------%
-% H thickness
+% H zone
 %------------------------------------------------------------%
-corDimH = 0.250;  % [um] 2a 1.2
+corDimH = 0.150;  % [um] 2a 1.2
 rootBInt = [0, 1];
 k = 2*pi/lambda;
 gamma = (ns^2 - n0^2)/(n1^2 - ns^2);
@@ -154,170 +164,177 @@ hold off
 
 %%
 %-----------------------------------------------------------%
-% Step 2
+% Step 2: Final effective index
 %-----------------------------------------------------------%
-corDimW = 1.5;    % 2a [um] 2a 3
-n1 = neH1;      % core
-% neT1 = 0;
-n0 = neT1;      % cladding
-ns = neT1;      % substrate
-lambda = 0.647;  % um 1.55
 
-rootBInt = [0, 1];
-k = 2*pi/lambda;
-gamma = (ns^2 - n0^2)/(n1^2 - ns^2);
+%corDimW = (0.2: 0.1: 1.600);  
+corDimW = 0.20;    % 2a [um] 2a 3
 
-v2 = k*corDimW/2*sqrt(n1^2 - ns^2);
+for corDimWIdx = 1: length(corDimW)
 
-% numerical aperture
-NA0X = n1*sqrt(2*(n1 - n0));
-NAsX = n1*sqrt(2*(n1 - ns));
+    n1 = neH1;      % core
+    % neT1 = 0;
+    n0 = neT1;      % cladding
+    ns = neT1;      % substrate
+    lambda = 0.647;  % um 1.55
 
-% DEBUG
-bx = (0:0.01:1);
-by = atan(sqrt(bx./(1 - bx))) +  ...
-                    atan(sqrt((bx + gamma)./(1 - bx))) - ...
-                    2.*v2.*sqrt(1 - bx);               
-figure, plot(bx,by), hold on % END debug 
+    rootBInt = [0, 1];
+    k = 2*pi/lambda;
+    gamma = (ns^2 - n0^2)/(n1^2 - ns^2);
 
-% Grab the b number
-myFunc = @(br) atan(sqrt(br./(1 - br))) +  ...
-                    atan(sqrt((br + gamma)./(1 - br))) - ...
-                    2.*v2.*sqrt(1 - br);
-                
-[b2, byRoot] = findCFRootBisection(myFunc, rootBInt, 0.01, 10^8);   
+    v2 = k*corDimW(corDimWIdx)/2*sqrt(n1^2 - ns^2);
 
+    % numerical aperture
+    NA0X = n1*sqrt(2*(n1 - n0));
+    NAsX = n1*sqrt(2*(n1 - ns));
 
-% effective index
-ne2 = sqrt(b2*(n1^2 - ns^2) + ns^2);
+    % DEBUG
+    bx = (0:0.01:1);
+    by = atan(sqrt(bx./(1 - bx))) +  ...
+                        atan(sqrt((bx + gamma)./(1 - bx))) - ...
+                        2.*v2.*sqrt(1 - bx);               
+    figure, plot(bx,by), hold on % END debug 
 
-beta = ne2*k;
-u = v2*sqrt(1 - b2);
-w =  v2*sqrt(b2);
-wP = v2*sqrt(b2 + gamma);
+    % Grab the b number
+    myFunc = @(br) atan(sqrt(br./(1 - br))) +  ...
+                        atan(sqrt((br + gamma)./(1 - br))) - ...
+                        2.*v2.*sqrt(1 - br);
 
-% transverse propagation constants
-ki = u/(corDimW/2);        %sqrt(k^2*n1^2 - betak^2);
-sigma = w/(corDimW/2);     %sqrt(betak^2 - k^2*n0^2);
-xi = wP/(corDimW/2);       %sqrt(betak^2 - k^2*ns^2);
-
-% phase
-phi = 0.5*atan(w/u) - 0.5*atan(wP/u);
-
-% power confinment 
-powerConf = (1 + (sin(u + phi))^2/(2*w) + (sin(u - phi))^2/(2*wP)) / ...
-                (1 + 1/(2*w) + 1/(2*wP) );
-
-% effective width
-he = corDimW + 1/sigma + 1/xi;
-dEW = 1/sigma;
-
-% penetrationd depth
-depth = lambda/(2*pi)/sqrt(ne2^2 - n0^2); 
-
-% cut-off lambda
-lambdaC02 = 2*pi/v2*corDimW/2*NA0X;
-lambdaCs2 = 2*pi/v2*corDimW/2*NAsX;
+    [b2, byRoot] = findCFRootBisection(myFunc, rootBInt, 0.01, 10^10);   
 
 
-% Electric field fundamental mode E(x)
-%x = (-corDimW/2 - 2: 0.1 :corDimW/2 + 2);
-x = (- 5 : 0.01 : 5);
-for xIdx = 1: length(x)
+    % effective index
+    ne2(corDimWIdx) = sqrt(b2*(n1^2 - ns^2) + ns^2);
 
-    % Electric field distribution: TE mode profile in the plane perpendicular
-    % to the propagation direction
-    ey(xIdx) = Efield(x(xIdx), corDimW, ki, sigma, phi, xi);
-    
+    beta = ne2(corDimWIdx)*k;
+    u = v2*sqrt(1 - b2);
+    w =  v2*sqrt(b2);
+    wP = v2*sqrt(b2 + gamma);
+
+    % transverse propagation constants
+    ki = u/(corDimW(corDimWIdx)/2);        %sqrt(k^2*n1^2 - betak^2);
+    sigma = w/(corDimW(corDimWIdx)/2);     %sqrt(betak^2 - k^2*n0^2);
+    xi = wP/(corDimW(corDimWIdx)/2);       %sqrt(betak^2 - k^2*ns^2);
+
+    % phase
+    phi = 0.5*atan(w/u) - 0.5*atan(wP/u);
+
+    % power confinment 
+    powerConf = (1 + (sin(u + phi))^2/(2*w) + (sin(u - phi))^2/(2*wP)) / ...
+                    (1 + 1/(2*w) + 1/(2*wP) );
+
+    % effective width
+    he(corDimWIdx) = corDimW(corDimWIdx) + 1/sigma + 1/xi;
+    dEW = 1/sigma;
+
+    % penetrationd depth
+    depth = lambda/(2*pi)/sqrt(ne2(corDimWIdx)^2 - n0^2); 
+
+    % cut-off lambda
+    lambdaC02 = 2*pi/v2*corDimW(corDimWIdx)/2*NA0X;
+    lambdaCs2 = 2*pi/v2*corDimW(corDimWIdx)/2*NAsX;
+
+
+    % Electric field fundamental mode E(x)
+    %x = (-corDimW/2 - 2: 0.1 :corDimW/2 + 2);
+    x = (- 5 : 0.01 : 5);
+    for xIdx = 1: length(x)
+
+        % Electric field distribution: TE mode profile in the plane perpendicular
+        % to the propagation direction
+        ey(xIdx) = Efield(x(xIdx), corDimW(corDimWIdx), ki, sigma, phi, xi);
+
+    end
+
+
+    figure,
+    plot(x, ey, 'k')
+    hold on
+    plot( repmat(-corDimW(corDimWIdx)/2,1, length(ey)), ey, 'r--')
+    plot( repmat(+corDimW(corDimWIdx)/2,1, length(ey)), ey, 'r--')
+    xlabel('x[um]')
+    ylabel('Efield/Emax')
+    title('TE0 mode profile along X')
+
+    % Rectangular grid in 2-D 
+    % [X, Y] = meshgrid (-4 : +4 , -2 : +2);
+    % Z = Efield(X)*Efield(Y);
+    pixSize = ( x(min(length(ex), length(ey))) - x(1) )/( min(length(ex), length(ey)) - 1); % um
+    Exy = ex( 1:min(length(ex), length(ey)) )'*ey( 1:min(length(ex), length(ey)) );
+
+    % figure, imagesc( flipud(Exy) );
+    figure, image( flipud(Exy),'CDataMapping','scaled'), colormap('jet')
+
+
+    xticklabels = (y(1) : 0.5 : y(min(length(ex), length(ey))));
+    xticks = linspace(1, min(length(ex), length(ey)), numel(xticklabels));
+    set(gca, 'XTick', xticks, 'XTickLabel', xticklabels)
+
+    yticklabels = (x(1) : 0.5 : x(min(length(ex), length(ey))));
+    yticks = linspace(1, min(length(ex), length(ey)), numel(yticklabels));
+    set(gca, 'YTick', yticks, 'YTickLabel', flipud(yticklabels(:)))  
+    hold on
+
+    % ridgeT = 1; %um
+    % ridgeH = 1.2; %um
+    % ridgeWidth = 3; % um
+
+    ridgeT = corDimH/2 - (corDimH - corDimT); %um
+    ridgeH = corDimH; %um
+    ridgeWidth = corDimW(corDimWIdx); % um
+
+    xmax = get(gca, 'xLim');
+    ymax = get(gca, 'yLim');
+
+    orizXEdge1 =  xmax(2)/2 + y(1 : min(length(ex), length(ey)))./pixSize + 0.5;
+    orizYEdge1 =  repmat( (ymax(2)/2 - ridgeT/pixSize + 0.5), 1, min(length(ex), length(ey)));
+
+    % orizXEdge2 =  xmax(2)/2 + y(1 : min(length(ex), length(ey)))./pixSize + 0.5;
+    % orizYEdge2 =  repmat( (ymax(2)/2 + ridgeT/2/pixSize + 0.5), 1, min(length(ex), length(ey)));
+
+    orizXEdge3 =  xmax(2)/2 + y(1 : min(length(ex), length(ey)))./pixSize + 0.5;
+    orizYEdge3 =  repmat( (ymax(2)/2 - ridgeH/2/pixSize + 0.5), 1, min(length(ex), length(ey)));
+
+    orizXEdge4 =  xmax(2)/2 + y(1 : min(length(ex), length(ey)))./pixSize + 0.5;
+    orizYEdge4 =  repmat( (ymax(2)/2 + ridgeH/2/pixSize + 0.5), 1, min(length(ex), length(ey)));
+
+    vertYEdge1 =  xmax(2)/2 + y(1 : min(length(ex), length(ey)))./pixSize + 0.5;
+    vertXEdge1 =  repmat( (ymax(2)/2 - ridgeWidth/2/pixSize + 0.5), 1, min(length(ex), length(ey)));
+
+    vertYEdge2 =  xmax(2)/2 + y(1 : min(length(ex), length(ey)))./pixSize + 0.5;
+    vertXEdge2 =  repmat( (ymax(2)/2 + ridgeWidth/2/pixSize + 0.5), 1, min(length(ex), length(ey)));
+
+
+    plot(orizXEdge1, orizYEdge1, 'r--', 'LineWidth',2)
+    % plot(orizXEdge2, orizYEdge2, 'r--')
+    plot(orizXEdge3, orizYEdge3, 'r--', 'LineWidth',2)
+    plot(orizXEdge4, orizYEdge4, 'r--', 'LineWidth',2)
+    plot(vertXEdge1, vertYEdge1, 'r--', 'LineWidth',2)
+    plot(vertXEdge2, vertYEdge2, 'r--', 'LineWidth',2)
+
+    axis equal
+    xlabel('x [um]')
+    ylabel('y [um]')
+    title('Electric field propagation XY')
+
+
+    figure, mesh(flipud(Exy)),
+    hold on,
+    image( flipud(Exy),'CDataMapping','scaled'), colormap('jet')
+    xticklabels = (y(1) : 0.5 : y(min(length(ex), length(ey))));
+    xticks = linspace(1, min(length(ex), length(ey)), numel(xticklabels));
+    set(gca, 'XTick', xticks, 'XTickLabel', xticklabels)
+
+    yticklabels = (x(1) : 0.5 : x(min(length(ex), length(ey))));
+    yticks = linspace(1, min(length(ex), length(ey)), numel(yticklabels));
+    set(gca, 'YTick', yticks, 'YTickLabel', flipud(yticklabels(:)))  
+    xlabel('x [um]')
+    ylabel('y [um]')
+    zlabel('Normalized Electric field profile')
+    title('Electric field propagation XY')
+
+
 end
-
-
-figure,
-plot(x, ey, 'k')
-hold on
-plot( repmat(-corDimW/2,1, length(ey)), ey, 'r--')
-plot( repmat(+corDimW/2,1, length(ey)), ey, 'r--')
-xlabel('x[um]')
-ylabel('Efield/Emax')
-title('TE0 mode profile along X')
-
-% Rectangular grid in 2-D 
-% [X, Y] = meshgrid (-4 : +4 , -2 : +2);
-% Z = Efield(X)*Efield(Y);
-pixSize = ( x(min(length(ex), length(ey))) - x(1) )/( min(length(ex), length(ey)) - 1); % um
-Exy = ex( 1:min(length(ex), length(ey)) )'*ey( 1:min(length(ex), length(ey)) );
-
-% figure, imagesc( flipud(Exy) );
-figure, image( flipud(Exy),'CDataMapping','scaled'), colormap('jet')
-
-
-xticklabels = (y(1) : 0.5 : y(min(length(ex), length(ey))));
-xticks = linspace(1, min(length(ex), length(ey)), numel(xticklabels));
-set(gca, 'XTick', xticks, 'XTickLabel', xticklabels)
-
-yticklabels = (x(1) : 0.5 : x(min(length(ex), length(ey))));
-yticks = linspace(1, min(length(ex), length(ey)), numel(yticklabels));
-set(gca, 'YTick', yticks, 'YTickLabel', flipud(yticklabels(:)))  
-hold on
-
-% ridgeT = 1; %um
-% ridgeH = 1.2; %um
-% ridgeWidth = 3; % um
-
-ridgeT = corDimH/2 - (corDimH - corDimT); %um
-ridgeH = corDimH; %um
-ridgeWidth = corDimW; % um
-
-xmax = get(gca, 'xLim');
-ymax = get(gca, 'yLim');
-
-orizXEdge1 =  xmax(2)/2 + y(1 : min(length(ex), length(ey)))./pixSize + 0.5;
-orizYEdge1 =  repmat( (ymax(2)/2 - ridgeT/pixSize + 0.5), 1, min(length(ex), length(ey)));
-
-% orizXEdge2 =  xmax(2)/2 + y(1 : min(length(ex), length(ey)))./pixSize + 0.5;
-% orizYEdge2 =  repmat( (ymax(2)/2 + ridgeT/2/pixSize + 0.5), 1, min(length(ex), length(ey)));
-
-orizXEdge3 =  xmax(2)/2 + y(1 : min(length(ex), length(ey)))./pixSize + 0.5;
-orizYEdge3 =  repmat( (ymax(2)/2 - ridgeH/2/pixSize + 0.5), 1, min(length(ex), length(ey)));
-
-orizXEdge4 =  xmax(2)/2 + y(1 : min(length(ex), length(ey)))./pixSize + 0.5;
-orizYEdge4 =  repmat( (ymax(2)/2 + ridgeH/2/pixSize + 0.5), 1, min(length(ex), length(ey)));
-
-vertYEdge1 =  xmax(2)/2 + y(1 : min(length(ex), length(ey)))./pixSize + 0.5;
-vertXEdge1 =  repmat( (ymax(2)/2 - ridgeWidth/2/pixSize + 0.5), 1, min(length(ex), length(ey)));
-
-vertYEdge2 =  xmax(2)/2 + y(1 : min(length(ex), length(ey)))./pixSize + 0.5;
-vertXEdge2 =  repmat( (ymax(2)/2 + ridgeWidth/2/pixSize + 0.5), 1, min(length(ex), length(ey)));
-
-
-plot(orizXEdge1, orizYEdge1, 'r--', 'LineWidth',2)
-% plot(orizXEdge2, orizYEdge2, 'r--')
-plot(orizXEdge3, orizYEdge3, 'r--', 'LineWidth',2)
-plot(orizXEdge4, orizYEdge4, 'r--', 'LineWidth',2)
-plot(vertXEdge1, vertYEdge1, 'r--', 'LineWidth',2)
-plot(vertXEdge2, vertYEdge2, 'r--', 'LineWidth',2)
-
-axis equal
-xlabel('x [um]')
-ylabel('y [um]')
-title('Electric field propagation XY')
-
-
-figure, mesh(flipud(Exy)),
-hold on,
-image( flipud(Exy),'CDataMapping','scaled'), colormap('jet')
-xticklabels = (y(1) : 0.5 : y(min(length(ex), length(ey))));
-xticks = linspace(1, min(length(ex), length(ey)), numel(xticklabels));
-set(gca, 'XTick', xticks, 'XTickLabel', xticklabels)
-
-yticklabels = (x(1) : 0.5 : x(min(length(ex), length(ey))));
-yticks = linspace(1, min(length(ex), length(ey)), numel(yticklabels));
-set(gca, 'YTick', yticks, 'YTickLabel', flipud(yticklabels(:)))  
-xlabel('x [um]')
-ylabel('y [um]')
-zlabel('Normalized Electric field profile')
-title('Electric field propagation XY')
-
 %% Ridge WG effective index method Y variable
 % 1/Y d2/dy2 Y + [k^2*n^2 -k^2*ne(x)^2] = 0
 
